@@ -1,0 +1,31 @@
+import sqlite3
+
+class database():
+    def __init__(self, datbase_file):
+        self.conn = sqlite3.connect(datbase_file) #establishes a connection to SQLite database
+        self.cursor = self.conn.cursor() #cursor object which is used to execute any SQL query
+    
+    def create_tables(self): #creates table if they do not already exist
+        self.cursor.execute("""CREATE TABLE IF NOT EXISTS users(
+                            user_id INTEGER PRIMARY KEY,
+                            email VARCHAR, 
+                            username VARCHAR,
+                            hashed_password VARCHAR 
+                            )""") #creates the table named users, holds login details
+        self.cursor.execute("""CREATE TABLE IF NOT EXISTS users_details(
+                            details_id INTEGER PRIMARY KEY,
+                            user_id INTEGER,
+                            gender VARCHAR,
+                            height INTEGER,
+                            weight INTEGER,
+                            FOREIGN KEY(user_id) REFERENCES users(user_id)
+                            )""") #creates the tabled named users_details, holds details of user
+    
+    def insert_users(self, email, username, hashed_password):
+        self.cursor.execute("INSERT INTO users (email, username, hashed_password) VALUES (?, ?, ?)", (email, username, hashed_password)) #inserts data into user table with sign up 
+        self.conn.commit() #ensures insertion of a new record within user table
+     
+    def insert_user_details(self, user_id, gender, height, weight):
+        self.cursor.execute("INSERT INTO user_details (user_id, gender, height, weight) VALUES (?, ?, ?)", (user_id, gender, height, weight)) #inserts data into user_details table
+        self.conn.commit() #ensures insertion of new record within user_details table
+                            
