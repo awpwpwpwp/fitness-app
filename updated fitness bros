@@ -1,6 +1,23 @@
 import sqlite3
+import hashlib
 
-class database():
+class CreateUser():
+    def __init__(self, email, username, password):
+        self.email = email
+        self.username = username
+        self.password = password
+
+    def user_input(self):
+        pass #create when user interface made
+
+    def get_user_info(self):
+        user_data = {
+            "email": self.email, 
+            "username": self.username,
+            "password": self.password
+        } #holds dictionary of login details
+
+class database(CreateUser):
     def __init__(self, datbase_file):
         self.conn = sqlite3.connect(datbase_file) #establishes a connection to SQLite database
         self.cursor = self.conn.cursor() #cursor object which is used to execute any SQL query
@@ -21,7 +38,7 @@ class database():
                             FOREIGN KEY(user_id) REFERENCES users(user_id)
                             )""") #creates the tabled named users_details, holds details of user
     
-    def insert_users(self, email, username, hashed_password):
+    def insert_users(self, email, username, hashed_password, user_info):
         self.cursor.execute("INSERT INTO users (email, username, hashed_password) VALUES (?, ?, ?)", (email, username, hashed_password)) #inserts data into user table with sign up 
         self.conn.commit() #ensures insertion of a new record within user table
      
@@ -29,3 +46,15 @@ class database():
         self.cursor.execute("INSERT INTO user_details (user_id, gender, height, weight) VALUES (?, ?, ?)", (user_id, gender, height, weight)) #inserts data into user_details table
         self.conn.commit() #ensures insertion of new record within user_details table
                             
+                            
+class HashingAlgorithm():
+    def __init__(self, algorithm = hashlib.new("SHA-256")):
+        self.algorithm = algorithm #creates hashing algorithm variable used to apply to passwords
+
+    def hash_password(self, password):
+        password = str(password) #string the password as ".encode()" does not support any other data types
+        self.algorithm.update(password.encode()) #updates password after applying hashing algorithm
+        hashed_password = self.algorithm.hexdigest() #converts binary into 
+        return hashed_password
+        
+
