@@ -1,5 +1,7 @@
 import sqlite3
 import hashlib
+import os
+
 
 class CreateUser():
     def __init__(self, email, username, password):
@@ -18,16 +20,18 @@ class CreateUser():
         } #holds dictionary of login details
 
 class database(CreateUser):
-    def __init__(self, datbase_file):
+    def __init__(self, datbase_file, algorithm = hashlib.new("SHA256")):
         self.conn = sqlite3.connect(datbase_file) #establishes a connection to SQLite database
         self.cursor = self.conn.cursor() #cursor object which is used to execute any SQL query
-    
+        self.algorithm = algorithm #creates hashing algorithm variable used to apply to passwords
+
     def create_tables(self): #creates table if they do not already exist
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS users(
                             user_id INTEGER PRIMARY KEY,
                             email VARCHAR, 
                             username VARCHAR,
                             hashed_password VARCHAR 
+                            salt VARCHAR
                             )""") #creates the table named users, holds login details
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS users_details(
                             details_id INTEGER PRIMARY KEY,
@@ -38,23 +42,27 @@ class database(CreateUser):
                             FOREIGN KEY(user_id) REFERENCES users(user_id)
                             )""") #creates the tabled named users_details, holds details of user
     
-    def insert_users(self, email, username, hashed_password, user_info):
-        self.cursor.execute("INSERT INTO users (email, username, hashed_password) VALUES (?, ?, ?)", (email, username, hashed_password)) #inserts data into user table with sign up 
+
+    def hash_password(self, password):
+        salt = os.urandom(16) #generates salt value to add to the password
+        salted_password = salt + password.encode("UTF-8") #"UTF-8" ensures non-ASCII characters are read and adds salt to password
+        self.algorithm.update(salted_password) #updates password after applying hashing algorithm
+        hashed_password = self.algorithm.hexdigest() #converts binary into 
+        return hashed_password, salt
+    
+    
+    def insert_users(self, email, username, hashed_password, salt):
+        self.cursor.execute("INSERT INTO users (email, username, hashed_password, salt) VALUES (?, ?, ?, ?)", (email, username, hashed_password, salt)) #inserts data into user table with sign up 
         self.conn.commit() #ensures insertion of a new record within user table
      
     def insert_user_details(self, user_id, gender, height, weight):
-        self.cursor.execute("INSERT INTO user_details (user_id, gender, height, weight) VALUES (?, ?, ?)", (user_id, gender, height, weight)) #inserts data into user_details table
+        self.cursor.execute("INSERT INTO user_details (user_id, gender, height, weight) VALUES (?, ?, ?, ?)", (user_id, gender, height, weight)) #inserts data into user_details table
         self.conn.commit() #ensures insertion of new record within user_details table
                             
-                            
-class HashingAlgorithm():
-    def __init__(self, algorithm = hashlib.new("SHA-256")):
-        self.algorithm = algorithm #creates hashing algorithm variable used to apply to passwords
-
-    def hash_password(self, password):
-        password = str(password) #string the password as ".encode()" does not support any other data types
-        self.algorithm.update(password.encode()) #updates password after applying hashing algorithm
-        hashed_password = self.algorithm.hexdigest() #converts binary into 
-        return hashed_password
+    def get_users(self):
+        self.cursor.execute("SELECT * FROM users").fetchall()
         
 
+iteration = database(datbase_file="david.db")
+print(iteration.get_users())
+print(iteration.hash_password("jdlkajwklajdadawdad"))
