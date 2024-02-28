@@ -2,28 +2,12 @@ import sqlite3
 import hashlib
 import os
 
-
-class CreateUser():
-    def __init__(self, email, username, password):
-        self.email = email
-        self.username = username
-        self.password = password
-
-    def user_input(self):
-        pass #create when user interface made
-
-    def get_user_info(self):
-        user_data = {
-            "email": self.email, 
-            "username": self.username,
-            "password": self.password
-        } #holds dictionary of login details
-
-class database(CreateUser):
+class database():
     def __init__(self, datbase_file, algorithm = hashlib.new("SHA256")):
         self.conn = sqlite3.connect(datbase_file) #establishes a connection to SQLite database
         self.cursor = self.conn.cursor() #cursor object which is used to execute any SQL query
         self.algorithm = algorithm #creates hashing algorithm variable used to apply to passwords
+
 
     def create_tables(self): #creates table if they do not already exist
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS users(
@@ -42,13 +26,44 @@ class database(CreateUser):
                             FOREIGN KEY(user_id) REFERENCES users(user_id)
                             )""") #creates the tabled named users_details, holds details of user
     
+    def validate_password(self, password):
+        uppercase_letters = False
+        special_characters = False
+        number = False
+        special_char = ['~', ':', "'", '+', '[', '\\', '@', '^', '{', '%', '(', '-', '"', '*', '|', ',', '&', '<', '`', '}', '.', '_', '=', ']', '!', '>', ';', '?', '#', '$', ')', '/']  
+        
+        for char in password: #loops through the password
+            if char.isupper(): #checks if any letters in the password is uppercase
+                uppercase_letters = True #changes boolean value to true if uppercase letter is found
+        
+        for special in special_char: #loops through each item in special_char array
+            for char in password: #loops through every character in the password
+                if special == char: #checkls if any of the looped special_char array matches the password characters
+                    special_characters = True #changes boolean value to true if special characters found
+
+        for num in password: #loops through characters in password
+            if num.isdigit(): #if a character in a password is a digit
+                number = True #change boolean value of number to True
+
+        if len(password) < 8: #if the length of the password is less then 8 
+            return False, "Password must be at least 8 characters long." #return False back to the program if the password requirements are not met and tell user what condition was not met
+        if not uppercase_letters:
+            return False, "Password must contain at least one uppercase letter."
+        if not special_characters:
+            return False, "Password must contain at least one special character."
+        if not number:
+            return False, "Password must contain at least one number."
+    
+        if len(password) >= 8 and uppercase_letters and special_characters and number: #if all conditions are fulfilled then return the password back to the program
+            self.hash_password(password)
+    
 
     def hash_password(self, password):
         salt = os.urandom(16) #generates salt value to add to the password
         salted_password = salt + password.encode("UTF-8") #"UTF-8" ensures non-ASCII characters are read and adds salt to password
         self.algorithm.update(salted_password) #updates password after applying hashing algorithm
         hashed_password = self.algorithm.hexdigest() #converts binary into 
-        return hashed_password, salt
+        return hashed_password, salt #returns the hashed_password and salt used to store into the database
     
     
     def insert_users(self, email, username, hashed_password, salt):
@@ -59,10 +74,24 @@ class database(CreateUser):
         self.cursor.execute("INSERT INTO user_details (user_id, gender, height, weight) VALUES (?, ?, ?, ?)", (user_id, gender, height, weight)) #inserts data into user_details table
         self.conn.commit() #ensures insertion of new record within user_details table
                             
-    def get_users(self):
-        self.cursor.execute("SELECT * FROM users").fetchall()
-        
+    def get_users(self, record_id):
+        record = self.cursor.execute(f"SELECT * FROM users WHERE user_id = {record_id}") #gets users information using user input using SQL statement
+        self.conn.commit() #ensures that this data is retrieved from the table
+        return record.fetchone() #returns the contents back to the program
+    
+    def get_users_details(self, record_id):
+        record = self.cursor.execute(f"SELECT * FROM user_details WHERE details_id = {record_id}") #get user details using user input using SQL statement
+        self.conn.commit() #ensures that this data is retrieved from the table
+        return record.fetchone() #returns the contents back to the program
+ 
+    def delete_user_record(self, record_id):
+        user_record = self.cursor.execute(f"DELETE FROM user WHERE user_id = {record_id}") #gets user input for id and deletes record from user table
+        user_details_record = self.cursor.execute(f"DELETE FROM user_details WHERE user_id = {record_id}") #also deletes the record of the same id in user_details to ensure referential intergrity
+        self.conn.commit() #ensures that the user data is deleted
+        self.conn.commit() #ensures that the user details data is deleted        
 
-iteration = database(datbase_file="david.db")
-print(iteration.get_users())
-print(iteration.hash_password("jdlkajwklajdadawdad"))
+    
+        
+        
+password_checker = database("david.db")
+print(password_checker.validate_password("daddA1dda#d"))
