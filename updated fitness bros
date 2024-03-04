@@ -1,20 +1,21 @@
 import sqlite3
 import hashlib
 import os
+import re #regular expressions libary
 
 class database():
     def __init__(self, datbase_file, algorithm = hashlib.new("SHA256")):
         self.conn = sqlite3.connect(datbase_file) #establishes a connection to SQLite database
         self.cursor = self.conn.cursor() #cursor object which is used to execute any SQL query
         self.algorithm = algorithm #creates hashing algorithm variable used to apply to passwords
-
+        
 
     def create_tables(self): #creates table if they do not already exist
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS users(
                             user_id INTEGER PRIMARY KEY,
                             email VARCHAR, 
                             username VARCHAR,
-                            hashed_password VARCHAR 
+                            hashed_password VARCHAR,
                             salt VARCHAR
                             )""") #creates the table named users, holds login details
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS users_details(
@@ -26,12 +27,71 @@ class database():
                             FOREIGN KEY(user_id) REFERENCES users(user_id)
                             )""") #creates the tabled named users_details, holds details of user
     
+    def verify_login(self, username, password):
+        password_details = ("SELECT hashed_password AND salt FROM users WHERE username = ?", (username))
+        print(password_details)
+
+    def create_user(self, email, username, password):
+        errors = [] #list of errors after validation
+        username_valid = self.username_exists(username) #gets results of username_exists function either true or false
+        email_valid = self.valid_email(email) #gets results of valid_email function either true or false
+        password_valid, _ = self.validate_password(password) ##gets results of validate_password function either true or false
+
+        if not username_valid: #if username_valid returns false
+            errors.append("Username not available") #append username not available to the list of errors
+        
+        if not email_valid: #if email_valid returns false
+            errors.append("Email is not valid")  #append email not valid to list of errors 
+         
+        if not password_valid: #if password_valid returns false
+            _, error_list = self.validate_password(password) #get the error list from result of function
+            errors.append("Password errors: " + ", ".join(error_list)) #join the error list without brackets to the list of errors from this function
+        
+        if not errors: #if no errors are found
+          hashed_password, _ = self.validate_password(password) #receive the hashed password from validate password function
+          _, salt = self.validate_password(password) #receive the salt from the validate password function 
+          self.insert_users(email, username, hashed_password, salt)  #append user inputs, hashed password, salt and the one time passcode to the database
+          return "User creation successful" #tell user that the creation was successful
+        
+        else: #if there were errors 
+            for error in errors: #loop through the errors 
+                print(error) #print the errors found so user can fix
+            return "User creation failed " #tell the user that the creation was not valid
+
+
+    def username_exists(self, username):
+        self.cursor.execute("SELECT * FROM users WHERE username = ?", (username,)) #selects all records and finds if a username is already in the database
+        row = self.cursor.fetchone() #fetches one row from the table where the username is found
+        
+        if row is None: #if the variable has not stored any data
+            return True #username is avaibale
+        else: 
+            return False #if content of row is found in row variable, return username is not available
+        
+
+    def valid_email(self, email):
+        self.cursor.execute("SELECT * FROM users WHERE email = ?", (email,)) #selects all records and finds if a username is already in the database
+        row = self.cursor.fetchone() #fetches one row from the table where the username is found
+        
+        if row is None: #if the variable has not stored any data
+            pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$' #email regular expression pattern
+    
+            if re.match(pattern, email): #if the regular expression pattern for an email matches the email
+               return True  #program will do more validation of the email
+            else:
+               return False  #return false if the email does not fit the regular expression pattern
+        else: 
+            return "Email is already in use" #if content of row is found in row variable, return username is not available
+        
+
     def validate_password(self, password):
         uppercase_letters = False
         special_characters = False
         number = False
         special_char = ['~', ':', "'", '+', '[', '\\', '@', '^', '{', '%', '(', '-', '"', '*', '|', ',', '&', '<', '`', '}', '.', '_', '=', ']', '!', '>', ';', '?', '#', '$', ')', '/']  
-        
+        errors = []
+
+
         for char in password: #loops through the password
             if char.isupper(): #checks if any letters in the password is uppercase
                 uppercase_letters = True #changes boolean value to true if uppercase letter is found
@@ -45,29 +105,50 @@ class database():
             if num.isdigit(): #if a character in a password is a digit
                 number = True #change boolean value of number to True
 
-        if len(password) < 8: #if the length of the password is less then 8 
-            return False, "Password must be at least 8 characters long." #return False back to the program if the password requirements are not met and tell user what condition was not met
+        if len(password) < 8: #checks password for specific security based conditions
+            errors.append("Password must be at least 8 characters")
+        
         if not uppercase_letters:
-            return False, "Password must contain at least one uppercase letter."
+            errors.append("Password must at least have one uppercase letter")
+        
         if not special_characters:
-            return False, "Password must contain at least one special character."
+            errors.append("Password must contain at least one special character")
+        
         if not number:
-            return False, "Password must contain at least one number."
+            errors.append("Password must contain one number")
     
-        if len(password) >= 8 and uppercase_letters and special_characters and number: #if all conditions are fulfilled then return the password back to the program
-            self.hash_password(password)
-    
+        if not errors: #if there are no errors in the list then return the hashed password with salt 
+            return self.hash_password(password)
+        else: #if there are errrors
+            for error in errors: #loop through the list 
+              return False, errors
 
     def hash_password(self, password):
         salt = os.urandom(16) #generates salt value to add to the password
         salted_password = salt + password.encode("UTF-8") #"UTF-8" ensures non-ASCII characters are read and adds salt to password
         self.algorithm.update(salted_password) #updates password after applying hashing algorithm
-        hashed_password = self.algorithm.hexdigest() #converts binary into 
+        hashed_password = self.algorithm.hexdigest() #converts bytes into hex string
+        salt = salt.hex() #converts bytes into hex string
         return hashed_password, salt #returns the hashed_password and salt used to store into the database
     
-    
-    def insert_users(self, email, username, hashed_password, salt):
-        self.cursor.execute("INSERT INTO users (email, username, hashed_password, salt) VALUES (?, ?, ?, ?)", (email, username, hashed_password, salt)) #inserts data into user table with sign up 
+    def reset_passcode(self, email, username):
+        errors = []
+        self.cursor.execute("SELECT * FROM users WHERE email = ? AND username = ?", (email,username,)) #Check if email and username are in the database
+        row = self.cursor.fetchone() #captures the results from checking
+        
+        if row: #if there are contents of the user stored in "row" then
+          password_change = input("Please enter new password: ")
+          validate = self.validate_password(password_change)
+          if not validate: #if password validation returns false
+            _, error_list = self.validate_password(password_change) #get the error list from result of function
+            errors.append("Password errors: " + ", ".join(error_list)) #join the error list without brackets to the list of errors from this function
+          else:
+        
+
+            
+
+    def insert_users(self, email, username, hashed_password, salt, otp):
+        self.cursor.execute("INSERT INTO users (email, username, hashed_password, salt, otp) VALUES (?, ?, ?, ?, ?)", (email, username, hashed_password, salt, otp)) #inserts data into user table with sign up 
         self.conn.commit() #ensures insertion of a new record within user table
      
     def insert_user_details(self, user_id, gender, height, weight):
@@ -90,8 +171,7 @@ class database():
         self.conn.commit() #ensures that the user data is deleted
         self.conn.commit() #ensures that the user details data is deleted        
 
-    
         
         
-password_checker = database("david.db")
-print(password_checker.validate_password("daddA1dda#d"))
+password_checker = database("AAABBB.db")
+print(password_checker.reset_passcode("albetpenha14@gmail.com","Sxayz1"))
