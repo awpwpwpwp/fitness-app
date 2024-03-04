@@ -133,19 +133,33 @@ class database():
     
     def reset_passcode(self, email, username):
         errors = []
-        self.cursor.execute("SELECT * FROM users WHERE email = ? AND username = ?", (email,username,)) #Check if email and username are in the database
+        self.cursor.execute("SELECT * FROM users WHERE email = ? AND username = ?", (email, username,)) #Check if email and username are in the database
         row = self.cursor.fetchone() #captures the results from checking
-        
+    
         if row: #if there are contents of the user stored in "row" then
-          password_change = input("Please enter new password: ")
-          validate = self.validate_password(password_change)
-          if not validate: #if password validation returns false
-            _, error_list = self.validate_password(password_change) #get the error list from result of function
-            errors.append("Password errors: " + ", ".join(error_list)) #join the error list without brackets to the list of errors from this function
-          else:
-        
+            password_change = input("Please enter new password: ") #user inputs new password
+            password_confirm = input("Please confirm password: ") #user confirmation of password
 
+
+            if password_change != password_confirm: 
+                return False, "Passwords do not match" 
             
+            else:
+                validate, error_list = self.validate_password(password_change) #captures the results from the function 
+
+
+            if not validate: #if password validation returns false
+                errors.extend(error_list) # extend the error list with all errors from validation
+                return False, errors
+            else:
+                new_password, new_salt = self.hash_password(password_change)
+                self.cursor.execute("UPDATE users SET hashed_password = ?, salt = ? WHERE email = ? AND username = ?", (new_password, new_salt, email, username,))
+                self.conn.commit()
+                return True, "Password reset successful"
+        else:
+            errors.append("No user found with the provided email and username.")
+            return False, errors  # return errors as a list
+    
 
     def insert_users(self, email, username, hashed_password, salt, otp):
         self.cursor.execute("INSERT INTO users (email, username, hashed_password, salt, otp) VALUES (?, ?, ?, ?, ?)", (email, username, hashed_password, salt, otp)) #inserts data into user table with sign up 
