@@ -28,8 +28,14 @@ class database():
                             )""") #creates the tabled named users_details, holds details of user
     
     def verify_login(self, username, password):
-        password_details = ("SELECT hashed_password AND salt FROM users WHERE username = ?", (username))
-        print(password_details)
+        valid_user, _ = self.username_exists(username) #check if the username is valid
+        
+        if valid_user: #if the username is valid
+          
+          hashed, salt = self.hashing_algorithm(password) #gets the hash and salt values for the password entered 
+          password_details = self.cursor.execute("SELECT hashed_password AND salt FROM users WHERE username = ?", (username,)) #find the users details based on username 
+          row = self.cursor.fetchone() #fetch all details
+
 
     def create_user(self, email, username, password):
         errors = [] #list of errors after validation
@@ -64,9 +70,9 @@ class database():
         row = self.cursor.fetchone() #fetches one row from the table where the username is found
         
         if row is None: #if the variable has not stored any data
-            return True #username is avaibale
+            return True, "Username available" #username is avaibale
         else: 
-            return False #if content of row is found in row variable, return username is not available
+            return False, "Username unavailable" #if content of row is found in row variable, return username is not available
         
 
     def valid_email(self, email):
@@ -141,8 +147,8 @@ class database():
             password_confirm = input("Please confirm password: ") #user confirmation of password
 
 
-            if password_change != password_confirm: 
-                return False, "Passwords do not match" 
+            if password_change != password_confirm: #if the passwords do not match
+                return False, "Passwords do not match" #return False and tell the user
             
             else:
                 validate, error_list = self.validate_password(password_change) #captures the results from the function 
@@ -150,12 +156,12 @@ class database():
 
             if not validate: #if password validation returns false
                 errors.extend(error_list) # extend the error list with all errors from validation
-                return False, errors
+                return False, errors #return False, with the list of errors that were found
             else:
-                new_password, new_salt = self.hash_password(password_change)
-                self.cursor.execute("UPDATE users SET hashed_password = ?, salt = ? WHERE email = ? AND username = ?", (new_password, new_salt, email, username,))
-                self.conn.commit()
-                return True, "Password reset successful"
+                new_password, new_salt = self.hash_password(password_change) #if no errors found, get new hashed_password and new salt
+                self.cursor.execute("UPDATE users SET hashed_password = ?, salt = ? WHERE email = ? AND username = ?", (new_password, new_salt, email, username,)) #replace these values in the database
+                self.conn.commit() #commit the changes
+                return True, "Password reset successful" #Tell user that the password reset was successful
         else:
             errors.append("No user found with the provided email and username.")
             return False, errors  # return errors as a list
@@ -189,3 +195,7 @@ class database():
         
 password_checker = database("AAABBB.db")
 print(password_checker.reset_passcode("albetpenha14@gmail.com","Sxayz1"))
+
+
+
+    
