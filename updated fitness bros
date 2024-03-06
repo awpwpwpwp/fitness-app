@@ -28,15 +28,20 @@ class database():
                             )""") #creates the tabled named users_details, holds details of user
     
     def verify_login(self, username, password):
-        valid_user, _ = self.username_exists(username) #check if the username is valid
-        
-        if valid_user: #if the username is valid
-          
-          hashed, salt = self.hashing_algorithm(password) #gets the hash and salt values for the password entered 
-          password_details = self.cursor.execute("SELECT hashed_password AND salt FROM users WHERE username = ?", (username,)) #find the users details based on username 
-          row = self.cursor.fetchone() #fetch all details
-
-
+        valid_user, _ = self.username_exists(username)  # Check if the username is valid
+        if valid_user:
+            self.cursor.execute("SELECT salt FROM users WHERE username = ?", (username,))
+            row = self.cursor.fetchone()
+            print(row)
+            if row:
+                salt = row[0].encode("UTF-8")
+                salted_password = salt + password.encode("UTF-8")
+                algorithm = hashlib.sha256()  # Initialize SHA-256 hashing algorithm
+                algorithm.update(salted_password)  # Apply hashing algorithm
+                hashed_password = algorithm.hexdigest()  # Convert to hex string
+                return hashed_password
+    
+    
     def create_user(self, email, username, password):
         errors = [] #list of errors after validation
         username_valid = self.username_exists(username) #gets results of username_exists function either true or false
@@ -69,7 +74,7 @@ class database():
         self.cursor.execute("SELECT * FROM users WHERE username = ?", (username,)) #selects all records and finds if a username is already in the database
         row = self.cursor.fetchone() #fetches one row from the table where the username is found
         
-        if row is None: #if the variable has not stored any data
+        if row: #if there is content in the variable details fouind
             return True, "Username available" #username is avaibale
         else: 
             return False, "Username unavailable" #if content of row is found in row variable, return username is not available
@@ -194,7 +199,7 @@ class database():
         
         
 password_checker = database("AAABBB.db")
-print(password_checker.reset_passcode("albetpenha14@gmail.com","Sxayz1"))
+print(password_checker.verify_login("fortnite1", "John1998#"))
 
 
 
