@@ -10,39 +10,42 @@ class database():
         self.algorithm = algorithm #creates hashing algorithm variable used to apply to passwords
         
 
-    def create_tables(self): #creates table if they do not already exist
+    def create_tables(self):
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS users(
                             user_id INTEGER PRIMARY KEY,
                             email VARCHAR, 
                             username VARCHAR,
                             hashed_password VARCHAR,
                             salt VARCHAR
-                            )""") #creates the table named users, holds login details
+                            )""")
         self.cursor.execute("""CREATE TABLE IF NOT EXISTS users_details(
                             details_id INTEGER PRIMARY KEY,
                             user_id INTEGER,
                             gender VARCHAR,
-                            height INTEGER,
-                            weight INTEGER,
+                            height FLOAT,
+                            weight FLOAT,
+                            age INTEGER,
                             FOREIGN KEY(user_id) REFERENCES users(user_id)
-                            )""") #creates the tabled named users_details, holds details of user
+                            )""")
     
     def verify_login(self, username, password):
         valid_user, _ = self.username_exists(username)  # Check if the username is valid
         if valid_user:
-            self.cursor.execute("SELECT salt FROM users WHERE username = ?", (username,))
+            self.cursor.execute("SELECT salt, hashed_password FROM users WHERE username = ?", (username,))
             row = self.cursor.fetchone()
-            print(row)
             if row:
-                salt = row[0].encode("UTF-8")
-                salted_password = salt + password.encode("UTF-8")
-                algorithm = hashlib.sha256()  # Initialize SHA-256 hashing algorithm
-                algorithm.update(salted_password)  # Apply hashing algorithm
-                hashed_password = algorithm.hexdigest()  # Convert to hex string
-                return hashed_password
+                salt = row[0]
+                hashed_password = self.hash_password(password, salt)
+                if hashed_password == row[1]:
+                    return True, "Login Success"
+                else:
+                    return False, "Login Failed, incorrect username or password"
+        else:
+            return False, "Login Failed, incorrect username or password"
+                
+        
     
-    
-    def create_user(self, email, username, password):
+    def create_user(self, email, username, password, gender, height, weight, age):
         errors = [] #list of errors after validation
         username_valid = self.username_exists(username) #gets results of username_exists function either true or false
         email_valid = self.valid_email(email) #gets results of valid_email function either true or false
@@ -59,10 +62,12 @@ class database():
             errors.append("Password errors: " + ", ".join(error_list)) #join the error list without brackets to the list of errors from this function
         
         if not errors: #if no errors are found
-          hashed_password, _ = self.validate_password(password) #receive the hashed password from validate password function
-          _, salt = self.validate_password(password) #receive the salt from the validate password function 
-          self.insert_users(email, username, hashed_password, salt)  #append user inputs, hashed password, salt and the one time passcode to the database
-          return "User creation successful" #tell user that the creation was successful
+          hashed_password, salt = self.validate_password(password) #receive the hashed password from validate password function
+          self.insert_users(email, username, hashed_password, salt)  #append user inputs, hashed password, salt
+          user_id = self.cursor.lastrowid
+          self.create_user_details(user_id, gender, height, weight, age) #sends user to create_user_details
+          
+          return True, "User creation successful" #tell user that the creation was successful, then are sent to create user details function
         
         else: #if there were errors 
             for error in errors: #loop through the errors 
@@ -129,19 +134,23 @@ class database():
             errors.append("Password must contain one number")
     
         if not errors: #if there are no errors in the list then return the hashed password with salt 
-            return self.hash_password(password)
+            return self.create_hashed_password(password)
         else: #if there are errrors
             for error in errors: #loop through the list 
               return False, errors
 
-    def hash_password(self, password):
-        salt = os.urandom(16) #generates salt value to add to the password
-        salted_password = salt + password.encode("UTF-8") #"UTF-8" ensures non-ASCII characters are read and adds salt to password
-        self.algorithm.update(salted_password) #updates password after applying hashing algorithm
-        hashed_password = self.algorithm.hexdigest() #converts bytes into hex string
-        salt = salt.hex() #converts bytes into hex string
-        return hashed_password, salt #returns the hashed_password and salt used to store into the database
+    def generate_salt(self, length=16):
+        return os.urandom(length)
     
+    def hash_password(self, password, salt):
+        password_salt = password.encode('utf-8') + salt
+        return hashlib.sha256(password_salt).hexdigest()
+    
+    def create_hashed_password(self, password): 
+        salt = self.generate_salt()
+        hashed_password = self.hash_password(password, salt)
+        return hashed_password, salt
+        
     def reset_passcode(self, email, username):
         errors = []
         self.cursor.execute("SELECT * FROM users WHERE email = ? AND username = ?", (email, username,)) #Check if email and username are in the database
@@ -163,7 +172,7 @@ class database():
                 errors.extend(error_list) # extend the error list with all errors from validation
                 return False, errors #return False, with the list of errors that were found
             else:
-                new_password, new_salt = self.hash_password(password_change) #if no errors found, get new hashed_password and new salt
+                new_password, new_salt = self.create_hashed_password(password_change) #if no errors found, get new hashed_password and new salt
                 self.cursor.execute("UPDATE users SET hashed_password = ?, salt = ? WHERE email = ? AND username = ?", (new_password, new_salt, email, username,)) #replace these values in the database
                 self.conn.commit() #commit the changes
                 return True, "Password reset successful" #Tell user that the password reset was successful
@@ -172,12 +181,37 @@ class database():
             return False, errors  # return errors as a list
     
 
-    def insert_users(self, email, username, hashed_password, salt, otp):
-        self.cursor.execute("INSERT INTO users (email, username, hashed_password, salt, otp) VALUES (?, ?, ?, ?, ?)", (email, username, hashed_password, salt, otp)) #inserts data into user table with sign up 
+    def create_user_details(self, user_id, gender, height, weight, age):
+        errors = []
+        gender = gender.lower()
+    
+        valid_genders = ["male", "female", "prefer not to say"]
+        if gender not in valid_genders:
+            errors.append("Please ensure gender selection is the following: Male, Female or Prefer not to say")
+    
+        if height < 0 or height > 2.5:
+            errors.append("Please ensure height is in range of 0 - 2.5m")
+    
+        if age < 16 or age > 100:
+            errors.append("Please ensure age is in range 16 - 100")
+    
+        if weight < 0 or weight > 300:
+            errors.append("Please ensure weight is in range of 0 - 300 KG")
+    
+        if not errors:
+            self.insert_user_details(user_id, gender, height, weight, age)
+                        
+        else:
+            for error in errors:
+                print(error)
+
+
+    def insert_users(self, email, username, hashed_password, salt):
+        self.cursor.execute("INSERT INTO users (email, username, hashed_password, salt) VALUES (?, ?, ?, ?)", (email, username, hashed_password, salt)) #inserts data into user table with sign up 
         self.conn.commit() #ensures insertion of a new record within user table
      
-    def insert_user_details(self, user_id, gender, height, weight):
-        self.cursor.execute("INSERT INTO user_details (user_id, gender, height, weight) VALUES (?, ?, ?, ?)", (user_id, gender, height, weight)) #inserts data into user_details table
+    def insert_user_details(self, user_id, gender, height, weight, age):
+        self.cursor.execute("INSERT INTO users_details (user_id, gender, height, weight, age) VALUES (?, ?, ?, ?, ?)", (user_id, gender, height, weight, age,)) #inserts data into user_details table
         self.conn.commit() #ensures insertion of new record within user_details table
                             
     def get_users(self, record_id):
@@ -199,8 +233,4 @@ class database():
         
         
 password_checker = database("AAABBB.db")
-print(password_checker.verify_login("fortnite1", "John1998#"))
-
-
-
-    
+print(password_checker.create_user("johnathen@gmail.com", "John10", "Porno1999#", "Male", 1.56, 56, 17))
