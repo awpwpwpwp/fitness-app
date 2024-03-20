@@ -39,7 +39,7 @@ class database():
                 user_id = row[2]
                 hashed_password = self.hash_password(password, salt)
                 if hashed_password == row[1]:
-                    self.start_user_session(user_id)
+                    self.set_user_id(user_id)
                     return True, self.set_user_id(row[2]),"Login Success"
                 else:
                     return False, "Login Failed, incorrect username or password"
