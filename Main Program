@@ -1,0 +1,66 @@
+from database import *
+
+
+class main(database):
+    def __init__(self):
+        self
+
+    
+    def bmr_calculation(self, gender, height, weight, age):
+
+        if gender == "male":
+
+          bmr = 66.4730 + (13.7516 * weight) + (5.0033 * height) - (6.7550 * age)
+          return True, "Your basil metabolic rate is: ", bmr
+
+        elif gender == "Female":
+
+          bmr = 655.0955 + (9.5634 + weight) + (1.8496 * height) - (4.6756 * age)
+          return True, "Your basil metabolic rate is: ", bmr
+        
+        else:
+          return False, "Error occurred"
+        
+    def caloric_intake_calc(bmr):
+        activity_rate = {
+          "Sedentary": 1.2,
+          "Lightly active": 1.375,
+          "Moderately active": 1.55,
+          "Very active": 1.7,
+          "Extremely active": 1.9
+         }
+    
+         
+        activity_input = int(input("""Please pick between one of the following: \n 1. Sedentary - meaning that you do little do no activity during the week
+                               \n 2. Lightly Active - You participate in some kind of fitness on a weekly basis usually around 1-2 times a week
+                               \n 3. Moderately Active - You participate in fitness 3-4 times a week
+                               \n 4. Very Active - You participate in fitness on a 5 day a week basis
+                               \n 5. Extremely active - You participate in fitness everyday"""))
+        
+
+        if activity_input == 1:
+            activity_input = "Sedentary"
+
+        elif activity_input == 2:
+            activity_input = "Lightly active"
+
+        elif activity_input == 3:
+            activity_input = "Moderately active"
+
+        elif activity_input == 4:
+            activity_input = "Very active"
+
+        elif activity_input == 5:
+            activity_input = "Extremely active"
+
+
+        activity_multiplier = activity_rate[activity_input]
+        
+        return activity_multiplier * bmr
+    
+ 
+
+
+
+bal = main()
+print(bal.bmr_calculation("male", ""))
